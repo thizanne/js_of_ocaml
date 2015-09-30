@@ -35,6 +35,7 @@ module Xml = struct
   module W = Xml_wrap.NoWrap
   type 'a wrap = 'a
   type 'a list_wrap = 'a list
+  type 'a attr_wrap = 'a
 
   type uri = string
   let uri_of_string s = s
@@ -162,6 +163,7 @@ module Svg = Svg_f.Make(Xml_Svg)
 module Html5 = Html5_f.Make(Xml)(Svg)
 
 module Xml_wrap = struct
+  type 'a attr = 'a React.signal
   type 'a t = 'a React.signal
   type 'a tlist = 'a ReactiveData.RList.t
   type ('a, 'b) ft = 'a -> 'b
@@ -170,7 +172,6 @@ module Xml_wrap = struct
   let nil () = ReactiveData.RList.nil
   let singleton = ReactiveData.RList.singleton_s
   let cons x xs = ReactiveData.RList.concat (singleton x) xs
-  let map f = ReactiveData.RList.map f
   let append x y = ReactiveData.RList.concat x y
 end
 
@@ -254,6 +255,7 @@ module R = struct
     module W = Xml_wrap
     type 'a wrap = 'a W.t
     type 'a list_wrap = 'a W.tlist
+    type 'a attr_wrap = 'a W.attr
     type uri = Xml.uri
     let string_of_uri = Xml.string_of_uri
     let uri_of_string = Xml.uri_of_string
