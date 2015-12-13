@@ -1,4 +1,6 @@
-MLOBJS= js.cmo dom.cmo typed_array.cmo dom_html.cmo dom_svg.cmo file.cmo dom_events.cmo firebug.cmo lwt_js.cmo sys_js.cmo regexp.cmo cSS.cmo url.cmo form.cmo xmlHttpRequest.cmo lwt_js_events.cmo json.cmo jsonp.cmo webGL.cmo webSockets.cmo keycode.cmo eventSource.cmo geolocation.cmo
+MLOBJS= js.cmo dom.cmo typed_array.cmo dom_html.cmo dom_svg.cmo file.cmo dom_events.cmo firebug.cmo sys_js.cmo regexp.cmo cSS.cmo url.cmo form.cmo xmlHttpRequest.cmo json.cmo webGL.cmo webSockets.cmo keycode.cmo eventSource.cmo geolocation.cmo
+#jsonp_lwt.cmo lwt_js_events.cmo file_lwt.cmo xmlHttpRequest_lwt.cmo lwt_js.cmo
+
 MLINTFS= $(MLOBJS:.cmo=.mli)
 COBJS= stubs$(OBJEXT)
 OBJS=lib_version.cmo $(MLOBJS) $(COBJS)
@@ -59,7 +61,7 @@ PPX_DERIVING_LIB= ppx/ppx_deriving_json.cma \
 	ppx/ppx_deriving_json.cmxs
 endif
 
-all: $(LIBNAME).cma log/logger.cma \
+all: $(LIBNAME).cma lwt_log/logger.cma \
 	${PA_JS} ${PA_JS_NDL} \
 	${PA_DERIVING} 	${PA_DERIVING_NDL} \
 	${DERIVING_JSON} \
@@ -111,44 +113,44 @@ syntax/pa_deriving_Json.cmxs: syntax/pa_deriving_Json.cmx
 	$(OCAMLOPT) -I syntax -shared -linkall -o $@ $<
 
 graphics/%.cmo: graphics/%.ml graphics/%.cmi syntax/pa_js.cmo
-	$(OCAMLC) -syntax camlp4o $(SAFESTRING) -package lwt,lwt.syntax,graphics -ppopt syntax/pa_js.cmo -I graphics -c $< -o $@
+	$(OCAMLC) -pp "camlp4o syntax/pa_js.cmo" $(SAFESTRING) -package graphics -ppopt syntax/pa_js.cmo -I graphics -c $< -o $@
 
 graphics/%.cmi: graphics/%.mli
-	$(OCAMLC) $(SAFESTRING) -package lwt,graphics -I ./ $< -o $@
+	$(OCAMLC) $(SAFESTRING) -package graphics -I ./ $< -o $@
 
 graphics/graphics.cma: graphics/graphics_js.cmo
 	$(OCAMLC) -a -o $@ $^
 
 tyxml/%.cmo: tyxml/%.ml tyxml/%.cmi tyxml/tyxml_cast_sigs.cmi syntax/pa_js.cmo
-	$(OCAMLC) -syntax camlp4o $(SAFESTRING) -package lwt,lwt.syntax,tyxml.functor,reactiveData,react -ppopt syntax/pa_js.cmo -I tyxml -c $< -o $@
+	$(OCAMLC) -pp "camlp4o syntax/pa_js.cmo" $(SAFESTRING) -package tyxml.functor,reactiveData,react -ppopt syntax/pa_js.cmo -I tyxml -c $< -o $@
 
 tyxml/tyxml_cast_sig.cmi: tyxml/tyxml_cast_sig.mli
-	$(OCAMLC) $(SAFESTRING) -package lwt,tyxml.functor,reactiveData,react -I . -I tyxml $< -o $@
+	$(OCAMLC) $(SAFESTRING) -package tyxml.functor,reactiveData,react -I . -I tyxml $< -o $@
 
 tyxml/tyxml_cast.cmi: tyxml/tyxml_cast_sigs.cmi
 tyxml/tyxml_js.cmi: tyxml/tyxml_cast_sigs.cmi
 
 tyxml/%.cmi: tyxml/%.mli
-	$(OCAMLC) $(SAFESTRING) -package lwt,tyxml.functor,reactiveData,react -I . -I tyxml $< -o $@
+	$(OCAMLC) $(SAFESTRING) -package tyxml.functor,reactiveData,react -I . -I tyxml $< -o $@
 
 tyxml/tyxml.cma: tyxml/tyxml_cast.cmo tyxml/tyxml_js.cmo
 	$(OCAMLC) -a -o $@ $^
 
 
-log/%.cmo: log/%.ml log/%.cmi syntax/pa_js.cmo
-	$(OCAMLC) -syntax camlp4o $(SAFESTRING) -package lwt,lwt.syntax,lwt.log -ppopt syntax/pa_js.cmo -I log -c $< -o $@
+lwt_log/%.cmo: lwt_log/%.ml lwt_log/%.cmi syntax/pa_js.cmo
+	$(OCAMLC) -syntax camlp4o $(SAFESTRING) -package lwt,lwt.syntax,lwt.log -ppopt syntax/pa_js.cmo -I lwt_log -c $< -o $@
 
-log/%.cmi: log/%.mli
-	$(OCAMLC) $(SAFESTRING) -package lwt,lwt.log -I . -I log $< -o $@
+lwt_log/%.cmi: lwt_log/%.mli
+	$(OCAMLC) $(SAFESTRING) -package lwt,lwt.log -I . -I lwt_log $< -o $@
 
-log/logger.cma: log/lwt_log_js.cmo
+lwt_log/logger.cma: lwt_log/lwt_log_js.cmo
 	$(OCAMLC) -a -o $@ $^
 
 toplevel_lib: $(TOPLEVELLIB)
 
 toplevel/jsooTop.cmo: toplevel/jsooTop.ml syntax/pa_js.cmo ../compiler/lib/compiler.cma
 	$(OCAMLC) -syntax camlp4o \
-		$(SAFESTRING) -package lwt,lwt.syntax \
+		$(SAFESTRING)
 		-ppopt syntax/pa_js.cmo \
 		-I toplevel -I ../compiler/lib -I +compiler-libs \
 		-c $< -o $@
@@ -209,10 +211,10 @@ ppx/ppx_deriving_json.cmxs: ppx/ppx_deriving_json.cmx
 	$(OCAMLOPT) -shared -o $@ $^
 
 %.cmo: %.ml syntax/pa_js.cmo
-	$(OCAMLC) -pp "camlp4o syntax/pa_js.cmo" $(SAFESTRING) -package lwt -c -g $<
+	$(OCAMLC) -pp "camlp4o syntax/pa_js.cmo" $(SAFESTRING) -c -g $<
 
 %.cmi: %.mli
-	$(OCAMLC) -package lwt -I deriving_json $(SAFESTRING) -c $<
+	$(OCAMLC) -I deriving_json $(SAFESTRING) -c $<
 
 %.ml: %.mll
 	ocamllex $<
@@ -224,7 +226,7 @@ ${JSON_OBJS:.cmo=.cmx}: %.cmx: %.ml ${PA_DERIVING}
 	$(OCAMLOPT) $(SAFESTRING) -package deriving.syntax.common -syntax camlp4o -ppopt ${PA_DERIVING} -I deriving_json -c $<
 
 %$(OBJEXT): %.c
-	$(OCAMLC) -package lwt -c $<
+	$(OCAMLC) -c $<
 
 stubs.c: $(MLOBJS:cmo=ml)
 	(echo "#include <stdlib.h>"; \
@@ -238,7 +240,7 @@ clean:
 	rm -f *.cm[xioa] *.[ao] *.so *.cmx[sa]
 	rm -f syntax/*.cm[xioa] syntax/*.[ao] syntax/*.so syntax/*.cmx[sa]
 	rm -f ppx/*.cm[xioa] ppx/*.[ao] ppx/*.so ppx/*.cmx[sa]
-	rm -f log/*.cm[xioa] log/*.[ao] log/*.so log/*.cmx[sa]
+	rm -f lwt_log/*.cm[xioa] lwt_log/*.[ao] lwt_log/*.so lwt_log/*.cmx[sa]
 	rm -f tyxml/*.cm[xioa] tyxml/*.[ao] tyxml/*.so tyxml/*.cmx[sa]
 	rm -f graphics/*.cm[xioa] graphics/*.[ao] graphics/*.so graphics/*.cmx[sa]
 	rm -f toplevel/*.cm[xioa] toplevel/*.[ao] toplevel/*.so toplevel/*.cmx[sa]
@@ -250,7 +252,7 @@ clean:
 
 depend: syntax/pa_js.cmo ${PA_DERIVING} sys_js.ml toplevel/jsooTopError.ml ppx/ppx_js.ml
 	ocamldep -pp "camlp4o syntax/pa_js.cmo" *.ml *.mli > .depend
-	ocamldep -pp "camlp4o syntax/pa_js.cmo" -I log log/*.ml log/*.mli >> .depend
+	ocamldep -pp "camlp4o syntax/pa_js.cmo" -I lwt_log lwt_log/*.ml lwt_log/*.mli >> .depend
 	ocamldep -pp "camlp4o syntax/pa_js.cmo" -I toplevel toplevel/jsooTop.ml toplevel/jsooTopCamlp4.ml toplevel/*.mli >> .depend
 	ocamldep toplevel/jsooTopError.ml -I toplevel >> .depend
 ifeq "${WITH_GRAPHICS}" "YES"

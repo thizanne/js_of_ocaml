@@ -198,7 +198,7 @@ let read_model a =
     (Array.of_list (List.rev !face))
 
 let http_get url =
-  XmlHttpRequest.get url >>= fun r ->
+  XmlHttpRequest_lwt.get url >>= fun r ->
   let cod = r.XmlHttpRequest.code in
   let msg = r.XmlHttpRequest.content in
   if cod = 0 || cod = 200

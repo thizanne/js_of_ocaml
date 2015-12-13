@@ -105,7 +105,7 @@ let json : < parse : Js.js_string Js.t -> 'a> Js.t = Js.Unsafe.pure_js_expr "JSO
 let (>>=) = Lwt.bind
 
 let http_get url =
-  XmlHttpRequest.get url
+  XmlHttpRequest_lwt.get url
     >>= fun {XmlHttpRequest.code = cod; content = msg} ->
   if cod = 0 || cod = 200
   then Lwt.return msg
