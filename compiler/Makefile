@@ -1,7 +1,7 @@
 
 include ../Makefile.conf
 
-PACKAGES=cmdliner base64
+PACKAGES=compiler-libs.common cmdliner base64
 
 
 ifeq "${WITH_FINDLIB}" "YES"
@@ -106,13 +106,13 @@ compiler_version.ml.tmp:
 	echo "let git_version = \"${VERSION_GIT}\"" >> $@
 
 %.cmx: %.ml
-	$(OCAMLOPT) -I +compiler-libs $(SAFESTRING) ${addprefix -package , $(PACKAGES)} -for-pack Compiler -g -c $<
+	$(OCAMLOPT) $(SAFESTRING) ${addprefix -package , $(PACKAGES)} -for-pack Compiler -g -c $<
 
 %.cmo: %.ml
-	$(OCAMLC) -I +compiler-libs $(SAFESTRING) ${addprefix -package , $(PACKAGES)} -c $<
+	$(OCAMLC) $(SAFESTRING) ${addprefix -package , $(PACKAGES)} -c $<
 
 %.cmi: %.mli
-	$(OCAMLC) -I +compiler-libs $(SAFESTRING) ${addprefix -package , $(PACKAGES)} -c $<
+	$(OCAMLC) $(SAFESTRING) ${addprefix -package , $(PACKAGES)} -c $<
 
 annot_parser.ml: annot_parser.mli
 annot_parser.mli: annot_parser.mly jsoo_primitive.cmi
