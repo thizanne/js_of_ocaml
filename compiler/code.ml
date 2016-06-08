@@ -494,8 +494,6 @@ let eq (pc1, blocks1, _) (pc2, blocks2, _) =
     with Not_found -> false
   ) blocks1 true
 
-
-
 let with_invariant = Option.Debug.find "invariant"
 let check_defs=false
 let invariant  (_, blocks, _) =

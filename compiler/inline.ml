@@ -46,6 +46,18 @@ let optimizable blocks pc _ =
           | _ -> true
         ) b.body )  pc blocks true
 
+let arg_tailcall live_vars blocks pc l =
+  Code.traverse Code.fold_children (fun pc acc ->
+    let b = AddrMap.find pc blocks in
+    match Util.last b.body, b.branch with
+    | Some (Let(r, Apply (f, _, _))), Return r' when
+        Code.Var.compare r r' = 0
+        && live_vars.(Var.idx f) = 1
+        && List.mem f l ->
+       VarSet.add f acc
+    | _ -> acc
+  ) pc blocks VarSet.empty
+
 let rec follow_branch_rec seen blocks = function
   | (pc, []) as k ->
     let seen = AddrSet.add pc seen in
@@ -59,18 +71,19 @@ let rec follow_branch_rec seen blocks = function
 
 let follow_branch = follow_branch_rec AddrSet.empty
 
-let get_closures (_, blocks, _) =
+let get_closures live_vars (_, blocks, _) =
   AddrMap.fold
     (fun _ block closures ->
        List.fold_left
          (fun closures i ->
             match i with
-              Let (x, Closure (l, cont)) ->
+              Let (f, Closure (l, cont)) ->
               let cont = follow_branch blocks cont in
               (* we can compute this once during the pass
                  as the property won't change with inlining *)
               let f_optimizable = optimizable blocks (fst cont) true in
-              VarMap.add x (l, cont, f_optimizable) closures
+              let tc = arg_tailcall live_vars blocks (fst cont) l in
+              VarMap.add f (l, cont, f_optimizable) closures
             | _ ->
               closures)
          closures block.body)
@@ -175,6 +188,11 @@ let simple blocks cont mapping =
   try follow cont `Empty mapping
   with Not_found -> `Fail
 
+exception Do_not_inline
+
+let rec inline_dup blocks branch clos_cont mapping =
+  raise Do_not_inline
+
 let rec args_equal xs ys = match xs, ys with
   | [],[] -> true
   | x::xs,Pv y::ys ->
@@ -207,13 +225,15 @@ let inline closures live_vars outer_optimizable pc (blocks,free_pc)=
              | `Exp exp ->
                (Let (x,exp) :: rem, state)
              | `Fail ->
-               if live_vars.(Var.idx f) = 1 && outer_optimizable = f_optimizable
+               if outer_optimizable = f_optimizable
                (* inlining the code of an optimizable function could make
                   this code unoptimized. (wrt to Jit compilers)
                   At the moment, V8 doesn't optimize function containing try..catch.
                   We disable inlining if the inner and outer funcitons don't have
                   the same "contain_try_catch" property *)
                then
+                 if live_vars.(Var.idx f) = 1
+                 then
                  let (blocks, cont_pc) =
                    match rem, branch with
                      [], Return y when Var.compare x y = 0 ->
@@ -236,6 +256,14 @@ let inline closures live_vars outer_optimizable pc (blocks,free_pc)=
                        body = []; branch = Branch clos_cont } blocks
                  in
                  ([], (Branch (free_pc + 1, args), blocks, free_pc + 2))
+                 else begin
+                   try
+                     let cont, blocks, free_pc = inline_dup blocks branch clos_cont [params, args] in
+                     ([], (Branch cont, blocks, free_pc))
+                   with
+                   | Do_not_inline ->
+                      (i :: rem, state)
+                 end
                else begin
                  (* Format.eprintf "Do not inline because inner:%b outer:%b@." f_has_handler outer_has_handler; *)
                  (i :: rem, state)
@@ -271,7 +299,7 @@ let times = Option.Debug.find "times"
 let f ((pc, blocks, free_pc) as p) live_vars =
   Code.invariant p;
   let t = Util.Timer.make () in
-  let closures = get_closures p in
+  let closures = get_closures live_vars p in
   let (blocks, free_pc) =
     Code.fold_closures p (fun name _ (pc,_) (blocks,free_pc) ->
       let outer_optimizable = match name with
