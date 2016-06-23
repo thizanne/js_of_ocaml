@@ -43,7 +43,7 @@ type info = {
   info_defs:def array;
   info_known_origins : Code.VarSet.t Code.VarTbl.t;
   info_maybe_unknown : bool Code.VarTbl.t;
-  info_possibly_mutable : bool array;
+  info_possibly_mutable : Util.BitSet.t;
 }
 
 val get_approx : info -> (Code.VarSet.elt -> 'b) ->

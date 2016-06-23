@@ -374,23 +374,29 @@ let constant ~ctx x level =
   let (expr, instr) = constant_rec ~ctx x level [] in
   (expr, List.rev instr)
 
-
-type queue_elt = {
-  prop : int;
-  cardinal : int;
-  ce : J.expression;
-  loc : J.location;
-  deps : Code.VarSet.t
-}
+module Queue = struct
+  module Elt = struct
+    type t = {
+      prop : int;
+      cardinal : int;
+      ce : J.expression;
+      loc : J.location;
+      deps : Code.VarSet.t
+    }
+  end
+end
 
 let access_queue queue x =
   try
     let elt = List.assoc x queue in
-    if elt.cardinal = 1
+    if  elt.Queue.Elt.cardinal = 1
     then
-      (elt.prop,elt.ce), List.remove_assoc x queue
+      (elt.Queue.Elt.prop,elt.Queue.Elt.ce), List.remove_assoc x queue
     else
-      ((elt.prop,elt.ce), List.map (function (x',elt) when x = x' -> x',{elt with cardinal=pred elt.cardinal} | x -> x) queue)
+      ((elt.Queue.Elt.prop,elt.Queue.Elt.ce), List.map (function
+         | (x',elt) when x = x' -> x',{elt with Queue.Elt.cardinal=pred elt.Queue.Elt.cardinal}
+         | x -> x)
+         queue)
   with Not_found ->
     ((const_p, var x), queue)
 
@@ -405,9 +411,9 @@ let access_queue' ~ctx queue x =
 let access_queue_may_flush queue v x =
   let tx,queue = access_queue queue x in
   let _,instrs,queue = List.fold_left (fun (deps,instrs,queue) ((y,elt) as eq) ->
-    if Code.VarSet.exists (fun p -> Code.VarSet.mem p deps) elt.deps then
+    if Code.VarSet.exists (fun p -> Code.VarSet.mem p deps) elt.Queue.Elt.deps then
       (Code.VarSet.add y deps,
-       (J.Variable_statement [J.V y, Some (elt.ce, elt.loc)], elt.loc)
+       (J.Variable_statement [J.V y, Some (elt.Queue.Elt.ce, elt.Queue.Elt.loc)], elt.Queue.Elt.loc)
        :: instrs,
        queue)
     else
@@ -421,12 +427,24 @@ let should_flush cond prop = cond <> const_p && cond + prop >= flush_p
 
 let flush_queue expr_queue prop (l:J.statement_list) =
   let (instrs, expr_queue) =
-    if prop >= flush_p then (expr_queue, []) else
-      List.partition (fun (_, elt) -> should_flush prop elt.prop) expr_queue
+    if prop >= flush_p
+    then (expr_queue, [])
+    else
+      let count_flush = ref 0 in
+      let count_keep = ref 0 in
+      List.iter (fun (_, elt) ->
+        if should_flush prop elt.Queue.Elt.prop
+        then incr count_flush
+        else incr count_keep) expr_queue;
+      if !count_flush = 0
+      then [], expr_queue
+      else if !count_keep = 0
+      then expr_queue, []
+      else List.partition (fun (_, elt) -> should_flush prop elt.Queue.Elt.prop) expr_queue
   in
   let instrs =
     List.map (fun (x, elt) ->
-                (J.Variable_statement [J.V x, Some (elt.ce, elt.loc)], elt.loc))
+                (J.Variable_statement [J.V x, Some (elt.Queue.Elt.ce, elt.Queue.Elt.loc)], elt.Queue.Elt.loc))
       instrs
   in
   (List.rev_append instrs l, expr_queue)
@@ -445,10 +463,10 @@ let enqueue expr_queue prop x ce loc cardinal acc =
   let deps = Js_simpl.get_variable Code.VarSet.empty ce in
   let deps = List.fold_left (fun deps (x',elt) ->
       if Code.VarSet.mem ( x') deps
-      then Code.VarSet.union elt.deps deps
+      then Code.VarSet.union elt.Queue.Elt.deps deps
       else deps) deps expr_queue
   in
-  (instrs @ acc , (x, {prop; ce; loc; cardinal; deps}) :: expr_queue)
+  (instrs @ acc , (x, {Queue.Elt.prop; ce; loc; cardinal; deps}) :: expr_queue)
 
 (****)
 

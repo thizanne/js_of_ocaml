@@ -22,7 +22,7 @@
 let times = Option.Debug.find "times"
 
 open Code
-
+module BitSet = Util.BitSet
 (****)
 
 let iter_cont_free_vars f (_, l) = List.iter f l
@@ -129,12 +129,12 @@ let find_loops ((_, blocks, _) as prog) =
   Code.fold_closures prog (fun _ _ (pc, _) () -> traverse pc) ();
   !in_loop
 
-let mark_variables in_loop (pc, blocks, free_pc) =
+let mark_variables in_loop (pc, blocks, _) =
   let vars = VarTbl.make () (-1) in
-  let visited = Array.make free_pc false in
+  let visited = BitSet.create () in
   let rec traverse pc =
-    if not visited.(pc) then begin
-      visited.(pc) <- true;
+    if not (BitSet.mem visited pc) then begin
+      BitSet.set visited pc;
       let block = AddrMap.find pc blocks in
       begin try
         let pc' = AddrMap.find pc in_loop in
@@ -156,13 +156,13 @@ Format.eprintf "!%a: %d@." Var.print x pc';
   traverse pc;
   vars
 
-let free_variables vars in_loop (pc, blocks, free_pc) =
+let free_variables vars in_loop (pc, blocks, _) =
   let all_freevars = ref AddrMap.empty in
   let freevars = ref AddrMap.empty in
-  let visited = Array.make free_pc false in
+  let visited = BitSet.create () in
   let rec traverse pc =
-    if not visited.(pc) then begin
-      visited.(pc) <- true;
+    if not (BitSet.mem visited pc) then begin
+      BitSet.set visited pc;
       let block = AddrMap.find pc blocks in
       iter_block_free_vars
         (fun x ->

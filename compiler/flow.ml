@@ -21,6 +21,7 @@
 let debug = Option.Debug.find "flow"
 let times = Option.Debug.find "times"
 
+module BitSet = Util.BitSet
 module Subst = Jsoo_subst
 module Primitive = Jsoo_primitive
 open Code
@@ -35,7 +36,7 @@ type info = {
   info_defs:def array;
   info_known_origins : Code.VarSet.t Code.VarTbl.t;
   info_maybe_unknown : bool Code.VarTbl.t;
-  info_possibly_mutable : bool array
+  info_possibly_mutable : BitSet.t
 }
 
 let update_def {info_defs; _} x exp =
@@ -182,16 +183,16 @@ let solver1 vars deps defs =
 type mutability_state =
   { defs : def array;
     known_origins : Code.VarSet.t Code.VarTbl.t;
-    may_escape : bool array;
-    possibly_mutable : bool array }
+    may_escape : BitSet.t;
+    possibly_mutable : BitSet.t }
 
 let rec block_escape st x =
   VarSet.iter
     (fun y ->
        let idx = Var.idx y in
-       if not st.may_escape.(idx) then begin
-         st.may_escape.(idx) <- true;
-         st.possibly_mutable.(idx) <- true;
+       if not (BitSet.mem st.may_escape idx) then begin
+         BitSet.set st.may_escape idx;
+         BitSet.set st.possibly_mutable idx;
          match st.defs.(Var.idx y) with
            Expr (Block (_, l)) -> Array.iter (fun z -> block_escape st z) l
          | _                   -> ()
@@ -252,9 +253,9 @@ let expr_escape st _x e =
     loop l ka
 
 let program_escape defs known_origins (_, blocks, _) =
-  let nv = Var.count () in
-  let may_escape = Array.make nv false in
-  let possibly_mutable = Array.make nv false in
+  let _nv = Var.count () in
+  let may_escape = BitSet.create () in
+  let possibly_mutable = BitSet.create () in
   let st =
     { defs = defs;
       known_origins = known_origins;
@@ -269,11 +270,11 @@ let program_escape defs known_origins (_, blocks, _) =
               Let (x, e) ->
                 expr_escape st x e
             | Set_field (x, _, y) | Array_set (x, _, y) ->
-                VarSet.iter (fun y -> possibly_mutable.(Var.idx y) <- true)
+                VarSet.iter (fun y -> BitSet.set possibly_mutable (Var.idx y))
                   (VarTbl.get known_origins x);
                 block_escape st y
             | Offset_ref (x, _) ->
-                VarSet.iter (fun y -> possibly_mutable.(Var.idx y) <- true)
+                VarSet.iter (fun y -> BitSet.set possibly_mutable (Var.idx y))
                   (VarTbl.get known_origins x))
          block.body;
        match block.branch with
@@ -304,7 +305,7 @@ let propagate2 ?(skip_param=false) defs known_origins possibly_mutable st x =
                  Expr (Block (_, a)) ->
                  n >= Array.length a
                  ||
-                 possibly_mutable.(Var.idx z)
+                 BitSet.mem possibly_mutable (Var.idx z)
                  ||
                  VarTbl.get st a.(n)
                | Phi _ | Param | Expr _ ->
@@ -343,7 +344,7 @@ let the_def_of info x =
            | Expr (Const _ as e) -> Some e
            | Expr (Constant (Float _| Int _ | IString _ ) as e) -> Some e
            | Expr e ->
-             if info.info_possibly_mutable.(Var.idx x)
+             if BitSet.mem info.info_possibly_mutable (Var.idx x)
              then None
              else Some e
            | _ -> None)
@@ -359,7 +360,7 @@ let the_const_of info x =
          | Expr (Const i) -> Some (Int i)
          | Expr (Constant ((Float _| Int _ | IString _) as c)) -> Some c
          | Expr (Constant c) ->
-           if info.info_possibly_mutable.(Var.idx x)
+           if BitSet.mem info.info_possibly_mutable (Var.idx x)
            then None
            else Some c
          | _ -> None)
@@ -385,7 +386,7 @@ let direct_approx info x =
     Expr (Field (y, n)) ->
       get_approx info
         (fun z ->
-           if info.info_possibly_mutable.(Var.idx z) then None else
+           if BitSet.mem info.info_possibly_mutable (Var.idx z) then None else
            match info.info_defs.(Var.idx z) with
              Expr (Block (_, a)) when n < Array.length a ->
                Some a.(n)

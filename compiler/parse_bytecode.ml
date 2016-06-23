@@ -21,6 +21,7 @@
 open Code
 open Instr
 module Primitive = Jsoo_primitive
+module BitSet = Util.BitSet
 let debug_parser = Option.Debug.find "parser"
 let debug_sourcemap = Option.Debug.find "sourcemap"
 
@@ -272,15 +273,15 @@ end
 module Blocks : sig
   type t
   val analyse : Debug.data -> code -> t
-  val add  : t -> int -> t
+  val add  : t -> int -> unit
   type u
   val finish_analysis : t -> u
   val next : u -> int -> int
 end = struct
-  type t = AddrSet.t
-  type u = int array
+  type t = BitSet.t
+  type u = BitSet.t
 
-  let add blocks pc =  AddrSet.add pc blocks
+  let add blocks pc =  BitSet.set blocks pc
   let rec scan debug blocks code pc len =
     if pc < len then begin
       match (get_instr code pc).kind with
@@ -291,37 +292,33 @@ end = struct
       | KBinary ->
         scan debug blocks code (pc + 3) len
       | KNullaryCall ->
-        let blocks =
-          if Debug.mem debug (pc + 1) then AddrSet.add pc blocks else blocks in
+        if Debug.mem debug (pc + 1) then BitSet.set blocks pc;
         scan debug blocks code (pc + 1) len
       | KUnaryCall ->
-        let blocks =
-          if Debug.mem debug (pc + 2) then AddrSet.add pc blocks else blocks in
+        if Debug.mem debug (pc + 2) then BitSet.set blocks pc;
         scan debug blocks code (pc + 2) len
       | KBinaryCall ->
-        let blocks =
-          if Debug.mem debug (pc + 3) then AddrSet.add pc blocks else blocks in
+        if Debug.mem debug (pc + 3) then BitSet.set blocks pc;
         scan debug blocks code (pc + 3) len
       | KJump ->
         let offset = gets code (pc + 1) in
-        let blocks = AddrSet.add (pc + offset + 1) blocks in
+        BitSet.set blocks (pc + offset + 1);
         scan debug blocks code (pc + 2) len
       | KCond_jump ->
         let offset = gets code (pc + 1) in
-        let blocks = AddrSet.add (pc + offset + 1) blocks in
+        BitSet.set blocks (pc + offset + 1);
         scan debug blocks code (pc + 2) len
       | KCmp_jump ->
         let offset = gets code (pc + 2) in
-        let blocks = AddrSet.add (pc + offset + 2) blocks in
+        BitSet.set blocks (pc + offset + 2);
         scan debug blocks code (pc + 3) len
       | KSwitch ->
         let sz = getu code (pc + 1) in
-        let blocks = ref blocks in
         for i = 0 to sz land 0xffff + sz lsr 16 - 1 do
           let offset = gets code (pc + 2 + i) in
-          blocks := AddrSet.add (pc + offset + 2) !blocks
+          BitSet.set blocks (pc + offset + 2)
         done;
-        scan debug !blocks code (pc + 2 + sz land 0xffff + sz lsr 16) len
+        scan debug blocks code (pc + 2 + sz land 0xffff + sz lsr 16) len
       | KClosurerec ->
         let nfuncs = getu code (pc + 1) in
         scan debug blocks code (pc + nfuncs + 3) len
@@ -333,24 +330,15 @@ end = struct
     end
     else blocks
 
-  let finish_analysis blocks = Array.of_list (AddrSet.elements blocks)
+  let finish_analysis blocks = blocks
 
-  (* invariant: a.(i) <= x < a.(j) *)
-  let rec find a i j x =
-    if i + 1 = j then a.(j) else
-    let k = (i + j) / 2 in
-    if a.(k) <= x then
-      find a k j x
-    else
-      find a i k x
-
-  let next blocks pc = find blocks 0 (Array.length blocks - 1) pc
+  let next blocks pc = BitSet.next_mem blocks (succ pc)
 
   let analyse debug_data code =
-    let blocks = AddrSet.empty in
+    let blocks = BitSet.create () in
     let len = String.length code  / 4 in
-    let blocks = add blocks 0 in
-    let blocks = add blocks len in
+    add blocks 0;
+    add blocks len;
     scan debug_data blocks code 0 len
 
 end
@@ -411,8 +399,8 @@ end
 (* Globals *)
 type globals =
   { mutable vars : Var.t option array;
-    mutable is_const : bool array;
-    mutable is_exported : bool array;
+    mutable is_const : BitSet.t;
+    mutable is_exported : BitSet.t;
     mutable named_value :  string option array;
     mutable override : (Var.t -> Code.instr list -> (Var.t * Code.instr list)) option array;
     constants : Obj.t array;
@@ -420,8 +408,8 @@ type globals =
 
 let make_globals size constants primitives =
   { vars = Array.make size None;
-    is_const = Array.make size false;
-    is_exported = Array.make size false;
+    is_const = BitSet.create ();
+    is_exported = BitSet.create ();
     named_value = Array.make size None;
     override = Array.make size None;
     constants = constants; primitives = primitives }
@@ -433,8 +421,6 @@ let resize_array a len def =
 
 let resize_globals g size =
   g.vars <- resize_array g.vars size None;
-  g.is_const <- resize_array g.is_const size false;
-  g.is_exported <- resize_array g.is_exported size true;
   g.named_value <- resize_array g.named_value size None;
   g.override <- resize_array g.override size None
 
@@ -650,13 +636,13 @@ let access_global g i =
     Some x ->
     x
   | None ->
-    g.is_const.(i) <- true;
+    BitSet.set g.is_const i;
     let x = Var.fresh () in
     g.vars.(i) <- Some x;
     x
 
 let register_global ?(force=false) g i rem =
-  if force || g.is_exported.(i)
+  if force || BitSet.mem g.is_exported i
   then
     let args =
       match g.named_value.(i) with
@@ -686,7 +672,7 @@ let get_global state instrs i =
       let cst = Constants.parse g.constants.(i) in
       (x, state, Let (x, Constant cst) :: instrs)
     end else begin
-      g.is_const.(i) <- true;
+      BitSet.set g.is_const i;
       let (x, state) = State.fresh_var state in
       if debug_parser () then Format.printf "%a = CONST(%d)@." Var.print x i;
       g.vars.(i) <- Some x;
@@ -1773,10 +1759,8 @@ let parse_bytecode ~debug code globals debug_data =
   let blocks =
     Blocks.analyse
       (if debug = `Full then debug_data else Debug.create ()) code in
-  let blocks =
-    if debug = `Full
-    then Debug.fold debug_data (fun pc _ blocks -> Blocks.add blocks pc) blocks
-    else blocks in
+  if debug = `Full
+  then Debug.fold debug_data (fun pc _ () -> Blocks.add blocks pc) ();
   let blocks = Blocks.finish_analysis blocks in
   compile_block blocks debug_data code 0 state;
   let blocks =
@@ -1942,7 +1926,7 @@ let exe_from_channel ~includes ?(toplevel=false) ?(dynlink=false) ~debug ~debug_
       Tbl.iter (fun id n ->
         (* Format.eprintf "export %d %d %s@." id.Ident.flags id.Ident.stamp id.Ident.name; *)
         globals.named_value.(n) <- Some id.Ident.name;
-        globals.is_exported.(n) <- true) symbols.num_tbl;
+        BitSet.set globals.is_exported n) symbols.num_tbl;
       (* @vouillon: *)
       (* we should then use the -linkall option to build the toplevel. *)
       (* The OCaml compiler can generate code using this primitive but *)
@@ -1959,11 +1943,11 @@ let exe_from_channel ~includes ?(toplevel=false) ?(dynlink=false) ~debug ~debug_
   let body = List.fold_left (fun body (i,name) ->
     globals.named_value.(i) <- Some name;
     let body = register_global ~force:true globals i body in
-    globals.is_exported.(i) <- false;
+    BitSet.unset globals.is_exported i;
     body) [] predefined_exceptions in
   let body = Util.array_fold_right_i (fun i _ l ->
     match globals.vars.(i) with
-      Some x when globals.is_const.(i) ->
+      Some x when BitSet.mem globals.is_const i ->
       let l = register_global globals i l in
       Let (x, Constant (Constants.parse globals.constants.(i))) :: l
     | _ -> l) globals.constants body in
@@ -2034,7 +2018,7 @@ let from_bytes primitives (code : code) =
   let gdata = Var.fresh () in
   let body = Util.array_fold_right_i (fun i var l ->
     match var with
-    | Some x when globals.is_const.(i) ->
+    | Some x when BitSet.mem globals.is_const i ->
       Let (x, Field (gdata, i)) :: l
     | _ -> l) globals.vars [] in
   let body = Let (gdata, Prim (Extern "caml_get_global_data", [])) :: body in
@@ -2156,7 +2140,7 @@ let from_compilation_units ~includes:_ ~debug ~debug_data l =
   let gdata = Var.fresh_n "global_data" in
   let body = Util.array_fold_right_i (fun i var l ->
     match var with
-    | Some x when globals.is_const.(i) ->
+    | Some x when BitSet.mem globals.is_const i ->
       begin match globals.named_value.(i) with
         | None ->
           let l = register_global globals i l in

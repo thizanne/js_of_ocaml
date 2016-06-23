@@ -18,6 +18,7 @@
  *)
 
 module Primitive = Jsoo_primitive
+module BitSet = Util.BitSet
 open Code
 open Flow
 
@@ -249,7 +250,7 @@ let the_case_of info x =
                   | Expr (Const i)
                   | Expr (Constant (Int i))       -> CConst (Int32.to_int i)
                   | Expr (Block (j,_))            ->
-                    if info.info_possibly_mutable.(Var.idx x)
+                    if BitSet.mem info.info_possibly_mutable (Var.idx x)
                     then Unknown
                     else  CTag j
                   | Expr (Constant (Tuple (j,_))) -> CTag j

@@ -20,6 +20,8 @@
 
 type addr = int
 
+module BitSet = Util.BitSet
+
 module DebugAddr : sig
   type dbg = private addr
   val of_addr : addr -> dbg
@@ -135,18 +137,18 @@ module VarTbl = struct
   let make () v = Array.make (Var.count ()) v
 end
 module VarISet = struct
-  type t = Var.t array
+  type t = BitSet.t
   type elt = Var.t
   let iter f t =
-    for i = 0 to Array.length t - 1 do
-      let x = t.(i) in
-      if Var.compare x Var.dummy <> 0 then f x
-    done
-  let mem t x = Var.compare t.(Var.idx x) Var.dummy <> 0
-  let add t x = t.(Var.idx x) <- x
-  let remove t x = t.(Var.idx x) <- Var.dummy
-  let copy = Array.copy
-  let empty _v = Array.make (Var.count ()) Var.dummy
+    BitSet.iter (fun x -> f (Var.of_idx x)) t
+  let mem t x = BitSet.mem t (Var.idx x)
+  let add t x =
+    if Var.compare x Var.dummy = 0
+    then BitSet.unset t (Var.idx x)
+    else BitSet.set t (Var.idx x)
+  let remove t x = BitSet.unset t (Var.idx x)
+  let copy = BitSet.copy
+  let empty _v = BitSet.create ()
 end
 
 
@@ -501,15 +503,15 @@ let check_defs=false
 let invariant  (_, blocks, _) =
   if with_invariant () || true
   then begin
-    let defs = Array.make (Var.count ()) false in
+    let defs = Util.BitSet.create () in
     let check_cont (cont, args) =
       let b = AddrMap.find cont blocks in
       assert (List.length args >= List.length b.params)
     in
     let define x = if check_defs then
         begin
-          assert (defs.(Var.idx x) = false);
-          defs.(Var.idx x) <- true
+          assert (not (Util.BitSet.mem defs (Var.idx x)));
+          Util.BitSet.set defs (Var.idx x)
         end
     in
     let check_expr = function
