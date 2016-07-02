@@ -9,7 +9,7 @@ name: "ocamlbuild-js_of_ocaml"
 version: "dev"
 
 build:   [make "-C" "ocamlbuild"]
-install: [make "install-lib" "BINDIR=%{bin}%"]
+install: [make "-C" "ocamlbuild" "install"]
 remove:  ["ocamlfind" "remove" "ocamlbuild-js_of_ocaml"]
 
 depends: [
