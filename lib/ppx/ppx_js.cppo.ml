@@ -297,7 +297,7 @@ let literal_object ~loc self_id ( fields : field_desc list) =
                  (Js.type_ "meth" [ret_ty])
            ) fields targs
          in
-         arrows targs tres)
+         arrows ((Js.nolabel, Js.type_ "t" [tres]) :: targs) tres)
       (fun targs tres ->
          let targs =
            List.map2 (fun f (l,args,ret) ->
@@ -326,9 +326,11 @@ let literal_object ~loc self_id ( fields : field_desc list) =
          | `Meth (_, _, _, _, fun_ty) -> Js.nolabel, Js.nolabel :: fun_ty) fields)
   in
 
+  let self = "self" in
+
   let fake_object =
     Exp.object_ ~loc:loc
-      { pcstr_self = (Pat.var ~loc:Location.none (Location.mknoloc "self"));
+      { pcstr_self = (Pat.any ~loc:Location.none ());
         pcstr_fields =
           (List.map
              (fun f ->
@@ -336,7 +338,7 @@ let literal_object ~loc self_id ( fields : field_desc list) =
                 let gloc = { loc with Location.loc_ghost = true} in
                 let apply e = match f with
                   | `Val _ -> e
-                  | `Meth _ -> Exp.apply e [Js.nolabel, [%expr ((fun x -> assert false) : 'a -> 'a Js.t) self ] ]
+                  | `Meth _ -> Exp.apply e [Js.nolabel, Exp.ident (lid self) ]
                 in
                 { pcf_loc = loc;
                   pcf_attributes = [];
@@ -351,11 +353,12 @@ let literal_object ~loc self_id ( fields : field_desc list) =
       }
   in
   Exp.apply invoker (
-    app_arg (List.fold_right (fun f fun_ ->
+
+    app_arg (List.fold_right (fun name fun_ ->
       (Exp.fun_ ~loc Js.nolabel None
-         (Pat.var ~loc:Location.none (Location.mknoloc (name f).txt))
+         (Pat.var ~loc:Location.none (Location.mknoloc name))
          fun_))
-      fields
+      (self :: List.map (fun f -> (name f).txt) fields)
       fake_object
     ) :: (List.map (fun f -> app_arg (body f)) fields))
 
