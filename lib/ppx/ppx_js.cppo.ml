@@ -272,80 +272,58 @@ let preprocess_literal_object mappper fields : [ `Fields of field_desc list | `E
 
 let literal_object ~loc self_id ( fields : field_desc list) =
 
-  let create_method_type f (_l,args,ret_ty) =
-    match f with
-    | `Val  (_id, Mutable, _,   _body)    -> Js.type_ "prop" [ret_ty]
-    | `Val  (_id, Immutable, _, _body)    -> Js.type_ "readonly_prop" [ret_ty]
-    | `Meth (_id, _, _,         _body, _) -> arrows (List.tl args) (Js.type_ "meth" [ret_ty])
-  in
-
   let name = function
-    | `Val  (id, _, _, _body)          -> id.txt
-    | `Meth (id, _, _, _body, _fun_ty) -> id.txt
-  in
-
-  let get_loc = function
-    | `Val  (id, _, _, _body)          -> id.loc
-    | `Meth (id, _, _, _body, _fun_ty) -> id.loc
-  in
-
-  let name_loc = function
-    | `Val  (id, _, _, _body)          -> id
-    | `Meth (id, _, _, _body, _fun_ty) -> id
+    | `Val  (id, _, _, _)    -> id
+    | `Meth (id, _, _, _, _) -> id
   in
 
   let body = function
-    | `Val  (_id, _, _, body)          -> body
-    | `Meth (_id, _, _, body, _fun_ty) -> [%expr fun [%p self_id] -> [%e body] ]
-  in
-
-  let wrap arg = function
-    | `Val  (_id, _, _, _body)          -> arg
-    | `Meth (_id, _, _, _body, _fun_ty) -> Js.fun_ "wrap_meth_callback" [ arg ]
+    | `Val  (_, _, _, body)    -> body
+    | `Meth (_, _, _, body, _) -> [%expr fun [%p self_id] -> [%e body] ]
   in
 
   let invoker = invoker
-
       (fun targs tres ->
-         let targs' =
-           List.map2 (fun f ((l,_,_) as a) ->
-             let ty = create_method_type f a in
-             let ty = match f with
-               | `Val _  -> ty
-               | `Meth _ -> Typ.arrow Js.nolabel (Js.type_ "t" [tres]) ty
-             in
-             l, ty) fields targs
+         let targs =
+           List.map2 (fun f (l,args,ret_ty) ->
+             match f with
+             | `Val  (_, Mutable,   _, _)    ->
+               l, Js.type_ "prop" [ret_ty]
+             | `Val  (_, Immutable, _, _)    ->
+               l, Js.type_ "readonly_prop" [ret_ty]
+             | `Meth (_, _,         _, _, _) ->
+               l, arrows (
+                 (Js.nolabel,Js.type_ "t" [tres]) :: List.tl args)
+                 (Js.type_ "meth" [ret_ty])
+           ) fields targs
          in
-         arrows targs' tres)
+         arrows targs tres)
       (fun targs tres ->
-         arrows
-           (targs_arrows
-              (List.map (fun (l,args,ret) ->
-                 let args =
-                   match args with
-                   | [] as x -> x
-                   | _::xs   -> (Js.nolabel, Js.type_ "t" [tres])::xs
-                 in
-                 l,args,ret)
-                 targs
-              )
-           )
-           (Js.type_ "t" [tres])
+         let targs =
+           List.map2 (fun f (l,args,ret) ->
+             match f with
+             | `Val _  -> l, args, ret
+             | `Meth _ -> l, (Js.nolabel, Js.type_ "t" [tres])::List.tl args, ret
+           ) fields targs
+         in
+         arrows (targs_arrows targs) (Js.type_ "t" [tres])
       )
       (fun args ->
          Js.unsafe
            "obj"
            [Exp.array (
               List.map2
-                (fun arg f ->
-                   tuple [str (unescape (name f)); inject_arg (wrap arg f) ]
-                )
-                args fields
+                (fun f arg ->
+                   tuple [str (unescape (name f).txt);
+                          inject_arg (match f with
+                            | `Val  _ -> arg
+                            | `Meth _ -> Js.fun_ "wrap_meth_callback" [ arg ]) ]
+                ) fields args
             )]
       )
       (List.map (function
          | `Val _ -> Js.nolabel, []
-         | `Meth (_id, _, _, _body, fun_ty) -> Js.nolabel, Js.nolabel :: fun_ty) fields)
+         | `Meth (_, _, _, _, fun_ty) -> Js.nolabel, Js.nolabel :: fun_ty) fields)
   in
 
   let fake_object =
@@ -354,18 +332,19 @@ let literal_object ~loc self_id ( fields : field_desc list) =
         pcstr_fields =
           (List.map
              (fun f ->
-                let gloc = { (get_loc f) with Location.loc_ghost = true} in
+                let loc = (name f).loc in
+                let gloc = { loc with Location.loc_ghost = true} in
                 let apply e = match f with
                   | `Val _ -> e
                   | `Meth _ -> Exp.apply e [Js.nolabel, [%expr ((fun x -> assert false) : 'a -> 'a Js.t) self ] ]
                 in
-                { pcf_loc = get_loc f;
+                { pcf_loc = loc;
                   pcf_attributes = [];
                   pcf_desc =
                     Pcf_method
-                      (name_loc f,
+                      (name f,
                        Public,
-                       Cfk_concrete (Fresh, apply (Exp.ident ~loc:gloc (lid ~loc:gloc (name f))))
+                       Cfk_concrete (Fresh, apply (Exp.ident ~loc:gloc (lid ~loc:gloc (name f).txt)))
                       )
                 })
              fields)
@@ -374,7 +353,7 @@ let literal_object ~loc self_id ( fields : field_desc list) =
   Exp.apply invoker (
     app_arg (List.fold_right (fun f fun_ ->
       (Exp.fun_ ~loc Js.nolabel None
-         (Pat.var ~loc:Location.none (Location.mknoloc (name f)))
+         (Pat.var ~loc:Location.none (Location.mknoloc (name f).txt))
          fun_))
       fields
       fake_object
