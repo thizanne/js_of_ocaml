@@ -338,7 +338,7 @@ let literal_object ~loc self_id ( fields : field_desc list) =
                 let gloc = { loc with Location.loc_ghost = true} in
                 let apply e = match f with
                   | `Val _ -> e
-                  | `Meth _ -> Exp.apply e [Js.nolabel, Exp.ident (lid self) ]
+                  | `Meth _ -> Exp.apply e [Js.nolabel, Exp.ident (lid ~loc:Location.none self) ]
                 in
                 { pcf_loc = loc;
                   pcf_attributes = [];
@@ -346,7 +346,7 @@ let literal_object ~loc self_id ( fields : field_desc list) =
                     Pcf_method
                       (name f,
                        Public,
-                       Cfk_concrete (Fresh, apply (Exp.ident ~loc:gloc (lid ~loc:gloc (name f).txt)))
+                       Cfk_concrete (Fresh, apply (Exp.ident ~loc:gloc (lid ~loc:Location.none (name f).txt)))
                       )
                 })
              fields)
@@ -377,16 +377,16 @@ let js_mapper _args =
           mapper.expr mapper  { new_expr with pexp_attributes }
 
         (* obj##.var := value *)
-        | [%expr [%e? [%expr [%e? obj] ##. [%e? meth]] as res] := [%e? value]] ->
+        | [%expr [%e? [%expr [%e? obj] ##. [%e? meth]]] := [%e? value]] ->
           let obj = mapper.expr mapper obj in
           let value = mapper.expr mapper value in
           let prop = exp_to_string meth in
-          let new_expr = prop_set ~loc:res.pexp_loc obj prop value in
+          let new_expr = prop_set ~loc:meth.pexp_loc obj prop value in
           mapper.expr mapper  { new_expr with pexp_attributes }
 
         (* obj##meth arg1 arg2 .. *)
         (* obj##(meth arg1 arg2) .. *)
-        | {pexp_desc = Pexp_apply (([%expr [%e? obj] ## [%e? meth]] as expr), args); _}
+        | {pexp_desc = Pexp_apply (([%expr [%e? obj] ## [%e? meth as expr]]), args); _}
         | [%expr [%e? obj] ## [%e? {pexp_desc = Pexp_apply((meth as expr),args); _}]]
           ->
           let meth = exp_to_string meth in
