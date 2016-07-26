@@ -200,9 +200,38 @@ function caml_string_unsafe_get (s, i) {
   }
 }
 
+//Provides: caml_bytes_unsafe_get mutable
+function caml_bytes_unsafe_get (s, i) {
+  switch (s.t & 6) {
+  default: /* PARTIAL */
+    if (i >= s.c.length) return 0;
+  case 0: /* BYTES */
+    return s.c.charCodeAt(i);
+  case 4: /* ARRAY */
+    return s.c[i]
+  }
+}
+
 //Provides: caml_string_unsafe_set
 //Requires: caml_convert_string_to_array
 function caml_string_unsafe_set (s, i, c) {
+  // The OCaml compiler uses Char.unsafe_chr on integers larger than 255!
+  c &= 0xff;
+  if (s.t != 4 /* ARRAY */) {
+    if (i == s.c.length) {
+      s.c += String.fromCharCode (c);
+      if (i + 1 == s.l) s.t = 0; /*BYTES | UNKOWN*/
+      return 0;
+    }
+    caml_convert_string_to_array (s);
+  }
+  s.c[i] = c;
+  return 0;
+}
+
+//Provides: caml_bytes_unsafe_set
+//Requires: caml_convert_string_to_array
+function caml_bytes_unsafe_set (s, i, c) {
   // The OCaml compiler uses Char.unsafe_chr on integers larger than 255!
   c &= 0xff;
   if (s.t != 4 /* ARRAY */) {

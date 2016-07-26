@@ -1273,7 +1273,16 @@ and compile infos pc state instrs =
       compile infos (pc + 1) (State.pop 1 state)
         (Let (x, Prim (Extern "caml_string_unsafe_get", [Pv y; Pv z])) ::
          instrs)
-    | SETSTRINGCHAR ->
+    | GETBYTESCHAR ->
+      let y = State.accu state in
+      let z = State.peek 0 state in
+      let (x, state) = State.fresh_var state in
+      if debug_parser () then Format.printf "%a = %a[%a]@."
+          Var.print x Var.print y Var.print z;
+      compile infos (pc + 1) (State.pop 1 state)
+        (Let (x, Prim (Extern "caml_bytes_unsafe_get", [Pv y; Pv z])) ::
+         instrs)
+    | SETBYTESCHAR ->
       if debug_parser () then Format.printf "%a[%a] = %a@." Var.print (State.accu state)
           Var.print (State.peek 0 state)
           Var.print (State.peek 1 state);
@@ -1282,7 +1291,7 @@ and compile infos pc state instrs =
       let z = State.peek 1 state in
       let (t, state) = State.fresh_var state in
       let instrs =
-        Let (t, Prim (Extern "caml_string_unsafe_set", [Pv x; Pv y; Pv z])) ::
+        Let (t, Prim (Extern "caml_bytes_unsafe_set", [Pv x; Pv y; Pv z])) ::
         instrs in
       let (x, state) = State.fresh_var state in
       if debug_parser () then Format.printf "%a = 0@." Var.print x;

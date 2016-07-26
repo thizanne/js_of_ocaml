@@ -102,7 +102,8 @@ type t =
   | GETVECTITEM
   | SETVECTITEM
   | GETSTRINGCHAR
-  | SETSTRINGCHAR
+  | GETBYTESCHAR
+  | SETBYTESCHAR
   | BRANCH
   | BRANCHIF
   | BRANCHIFNOT
@@ -279,8 +280,8 @@ let ops,ops_rev =
        VECTLENGTH, KNullary, "VECTLENGTH";
        GETVECTITEM, KNullary, "GETVECTITEM";
        SETVECTITEM, KNullary, "SETVECTITEM";
-       GETSTRINGCHAR, KNullary, "GETSTRINGCHAR";
-       SETSTRINGCHAR, KNullary, "SETSTRINGCHAR";
+       GETBYTESCHAR, KNullary, "GETBYTESCHAR";
+       SETBYTESCHAR, KNullary, "SETBYTESCHAR";
        BRANCH, KJump, "BRANCH";
        BRANCHIF, KCond_jump, "BRANCHIF";
        BRANCHIFNOT, KCond_jump, "BRANCHIFNOT";
@@ -345,6 +346,7 @@ let ops,ops_rev =
        BREAK, K_will_not_happen, "BREAK";
        RERAISE, if_v4 (KStop 0) K_will_not_happen, "RERAISE";
        RAISE_NOTRACE, if_v4 (KStop 0) K_will_not_happen, "RAISE_NOTRACE";
+       GETSTRINGCHAR, KNullary, "GETSTRINGCHAR";
        FIRST_UNIMPLEMENTED_OP, K_will_not_happen, "FIRST_UNIMPLEMENTED_OP"|] in
   let ops =
     Array.mapi
