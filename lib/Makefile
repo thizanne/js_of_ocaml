@@ -12,10 +12,12 @@ include ../Makefile.conf
 -include ../Makefile.local
 
 DERIVING_JSON=deriving_json.cma
+ifeq "$(BEST)" "opt"
+DERIVING_JSON += deriving_json.cmxs
+endif
 ifeq "${WITH_DERIVING}" "YES"
 PA_DERIVING=syntax/pa_deriving_Json.cmo
 ifeq "$(BEST)" "opt"
-DERIVING_JSON += deriving_json.cmxs
 ifeq "${NATDYNLINK}" "YES"
 PA_DERIVING_NDL= syntax/pa_deriving_Json.cmx syntax/pa_deriving_Json.cmxs
 endif
