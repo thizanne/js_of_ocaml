@@ -1,0 +1,8 @@
+requires_camlp4
+(library
+ ((name js_of_ocaml_graphics)
+  (libraries (js_of_ocaml lwt))
+  (js_of_ocaml ())
+  (extra_disabled_warnings ())
+  (preprocess (((pps (pa_js)) All)))
+  ))

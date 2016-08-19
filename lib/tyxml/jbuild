@@ -1,0 +1,8 @@
+requires_camlp4
+(library
+ ((name js_of_ocaml_tyxml)
+  (libraries (js_of_ocaml tyxml react reactiveData))
+  (js_of_ocaml ())
+  (extra_disabled_warnings ())
+  (preprocess (((pps (pa_js)) All)))
+  ))

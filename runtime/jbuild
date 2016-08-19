@@ -1,0 +1,27 @@
+(alias
+ ((name DEFAULT)
+  (deps (runtime.js))))
+
+(rule
+ ((targets (runtime.js))
+  (deps (mlString.js ieee_754.js int64.js md5.js marshal.js
+                     lexing.js parsing.js bigarray.js unix.js
+                     stdlib.js io.js fs.js jslib.js jslib_js_of_ocaml.js
+                     internalMod.js gc.js polyfill/json2.js
+                     ))
+  (action "
+	echo \"//concat ${^}\" > ${@}
+	for f in ${^} ; do \
+	   echo \"//# 1 \\\"$f\\\"\" >> ${@}; \
+	   cat $f >> ${@}; \
+	done")))
+
+(provides
+ js_of_ocaml:runtime.js
+ js_of_ocaml:bigstring.js
+ js_of_ocaml:bin_prot.js
+ js_of_ocaml:core_kernel.js
+ js_of_ocaml:weak.js
+ js_of_ocaml:nat.js
+ js_of_ocaml:strftime.js
+ js_of_ocaml:predefined_exceptions.js)

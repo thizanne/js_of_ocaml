@@ -1,0 +1,9 @@
+requires_camlp4
+(library
+ ((name js_of_ocaml_async)
+  (public_name js_of_ocaml.async)
+  (public_release (external ((wrapped false))))
+  (libraries (js_of_ocaml
+              async_kernel))
+  (js_of_ocaml ())
+  (preprocess (((pps (pa_js)) All)))))

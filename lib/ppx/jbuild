@@ -1,0 +1,17 @@
+(library
+ ((name ppx_js)
+  (public_name js_of_ocaml.ppx)
+  (public_release (external ((wrapped false))))
+  (wrapped false)
+  (libraries (ocamlcommon ppx_tools))
+  (extra_disabled_warnings (7))
+  (modules (list (ppx_js)))
+  (preprocess ((metaquot All)))))
+
+;; (library
+;;  ((name ppx_deriving_json)
+;;   (wrapped false)
+;;   (libraries (ppx_tools ppx_driver ppx_core))
+;;   (extra_disabled_warnings (7))
+;;   (modules (list (ppx_deriving_json)))
+;;   (preprocess ((metaquot All)))))

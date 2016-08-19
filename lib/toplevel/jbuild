@@ -1,0 +1,16 @@
+requires_camlp4
+(library
+ ((name js_of_ocaml_toplevel)
+  (public_name js_of_ocaml.toplevel)
+  (public_release (external ((wrapped false))))
+  (libraries (compiler-libs.bytecomp js_of_ocaml js_of_ocaml_compiler))
+  (modules (:standard \ jsooTopError.cppo))
+  (js_of_ocaml ())
+  (preprocess (((pps (pa_js)) All)))))
+
+
+(rule
+ ((targets (jsooTopError.ml))
+  (deps (jsooTopError.cppo.ml))
+  (action "cppo -V OCAML:${ocaml_version} jsooTopError.cppo.ml -o jsooTopError.ml")
+  ))

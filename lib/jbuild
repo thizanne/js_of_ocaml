@@ -1,0 +1,33 @@
+;; wait for js_of_ocaml to switch to ppx upstream
+;;
+;; Inside the tree, Js_of_ocaml library is wrapped inside a Js_of_ocaml module.
+;; The syntax extension need to know how to reference [Js.t] in order to generate correct code.
+;; ([Js_of_ocaml.Js.t] vs [Js.t])
+
+;; The ppx syntax has been updated to always use [Js_of_ocaml.Js.t] (This fix is Janestreet specific).
+requires_camlp4
+(library
+ ((name js_of_ocaml)
+  (public_name js_of_ocaml)
+  (public_release (external ((wrapped false))))
+  (libraries (lwt))
+  (extra_disabled_warnings (9))
+  ;; Not compiling all the files that support lwt, since we don't even have
+  ;; lwt in the tree.
+  ;; (modules (:standard \ jsonp lwt_js_events lwt_js))
+  (c_names (js_of_ocaml_stubs))
+  (js_of_ocaml ())
+  (preprocess (((pps (pa_js)) All)))))
+
+(rule
+ ((targets (js_of_ocaml_stubs.c))
+  (deps (generate_stubs.sh (glob_files *.ml)))
+  (action "./generate_stubs.sh > js_of_ocaml_stubs.c")
+  ))
+
+(rule
+ ((targets (lib_version.ml))
+  (deps (../VERSION))
+  (action "
+	echo \"let s = \\\"2.8.2\\\"\" > lib_version.ml
+	echo \"let git_version = \\\"\\\"\" >> lib_version.ml")))

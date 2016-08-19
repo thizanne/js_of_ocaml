@@ -17,7 +17,6 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *)
 
-
 include module type of Lwt_log_core
   with type level = Lwt_log_core.level
    and type logger = Lwt_log_core.logger

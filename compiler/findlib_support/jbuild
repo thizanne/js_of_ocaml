@@ -1,0 +1,7 @@
+(library
+ ((name js_of_ocaml_compiler_findlib_support)
+  (libraries (js_of_ocaml_compiler findlib))
+  (extra_disabled_warnings (7 9 37 38))
+  (js_of_ocaml ())
+  (preprocess ((no_preprocessing All)))
+  ))

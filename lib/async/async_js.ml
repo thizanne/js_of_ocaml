@@ -17,6 +17,7 @@
  *)
 
 open Core_kernel.Std
+open Js_of_ocaml
 
 module Time_ns = Core_kernel.Time_ns
 module Clock_ns = Async_kernel.Clock_ns
