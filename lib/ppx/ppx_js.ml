@@ -4,6 +4,7 @@ open Ast_mapper
 open Ast_helper
 open Asttypes
 open Parsetree
+open Ppx_tools
 open Ast_convenience
 
 (** Check if an expression is an identifier and returns it.
@@ -54,7 +55,7 @@ end = struct
   let js_dot name =
     if Lazy.force inside_Js
     then name
-    else "Js." ^ name
+    else "Js_of_ocaml.Js." ^ name
 
   let js_unsafe_dot name = js_dot ("Unsafe." ^ name)
 
@@ -92,8 +93,31 @@ let obj_arrows targs tres =
   let lbl, tobj, tobjres = List.hd targs and targs = List.tl targs in
   ((lbl, Js.type_ "t" [arrows tobj tobjres]) :: (targs_arrows targs)), tres
 
-let invoker uplift downlift body desc =
-  let labels = List.map fst desc in
+
+(* uplift   : type of the fake value
+   downlift : types of individual components.
+   body     : implementation
+   desc     : description of arguments
+*)
+module ArgDescr : sig
+  type t
+  val simple : arg_label -> t
+  val simple_nolabel : t
+  val complex_nolabel : arg_label list -> t
+  val label : t -> arg_label
+  val content : t -> arg_label list
+end = struct
+  type t = arg_label * arg_label list
+  let simple l = l, []
+  let simple_nolabel = Label.nolabel,[]
+  let complex_nolabel args = Label.nolabel, args
+  let label (label,_) = label
+  let content (_,content) = content
+end
+
+let invoker uplift downlift body desc' =
+
+  let labels = List.map ArgDescr.label desc' in
   let default_loc' = !default_loc in
   default_loc := Location.none;
   let arg i _ = "a" ^ string_of_int i in
@@ -103,18 +127,23 @@ let invoker uplift downlift body desc =
 
   let argi s i = s ^ "_" ^ string_of_int i
   in
-  let targs = List.map2 (fun (l,args) s -> l, List.mapi (fun i l -> l, typ (argi s i)) args, typ (s ^ "_ret") ) desc args in
+  let targs = List.map2 (fun desc s ->
+    let label = ArgDescr.label desc in
+    let content = ArgDescr.content desc in
+    label, List.mapi (fun i l -> l, typ (argi s i)) content,
+    typ (s ^ "_ret") ) desc' args in
 
   let ntargs =
-    List.map2 (fun (_l,args) s -> (s ^ "_ret") :: List.mapi (fun i _l -> argi s i) args) desc args
+    List.map2 (fun desc s ->
+      let content = ArgDescr.content desc in
+      (s ^ "_ret") :: List.mapi (fun i _l -> argi s i) content) desc' args
     |> List.concat
   in
 
   let res = "res" in
   let tres = typ res in
 
-  let twrap_args,twrap_res = uplift targs tres in
-  let twrap = arrows twrap_args twrap_res in
+  let twrap = uplift targs tres in
   let tfunc_args,tfunc_res = downlift targs tres in
 
   let ebody = Exp.constraint_ (body (List.map (fun s -> Exp.ident (lid s)) args)) tfunc_res in
@@ -147,13 +176,13 @@ let method_call ~loc obj meth args =
   let obj = Exp.constraint_ ~loc:gloc obj (open_t gloc) in
   let invoker =
     invoker
-      (fun targs tres -> targs_arrows targs, Js.type_ "meth" [tres])
+      (fun targs tres -> arrows (targs_arrows targs) (Js.type_ "meth" [tres]))
       obj_arrows
       (fun eargs ->
          let eobj = List.hd eargs in
          let eargs = inject_args (List.tl eargs) in
          Js.unsafe "meth_call" [eobj; str (unescape meth); eargs])
-      ((Label.nolabel,[]) :: List.map (fun (l,_) -> l,[]) args)
+      (ArgDescr.simple_nolabel :: List.map (fun (l,_) -> ArgDescr.simple l) args)
   in
   Exp.apply invoker (
     app_arg obj :: args
@@ -170,10 +199,10 @@ let prop_get ~loc:_ ~prop_loc obj prop =
   let invoker =
     invoker
       (fun targs tres ->
-         targs_arrows targs,Js.type_ "gen_prop" [[%type: <get: [%t tres]; ..> ]])
+         arrows (targs_arrows targs) (Js.type_ "gen_prop" [[%type: <get: [%t tres]; ..> ]]))
       obj_arrows
       (fun eargs -> Js.unsafe "get" [List.hd eargs; str (unescape prop)])
-      [Label.nolabel,[]]
+      [ArgDescr.simple_nolabel]
   in
   Exp.apply invoker (
     [ app_arg obj
@@ -192,15 +221,14 @@ let prop_set ~loc ~prop_loc obj prop value =
     invoker
       (fun targs _tres -> match targs with
          | [_,[],tobj; _,[],targ] ->
-           [Label.nolabel,tobj],
-           Js.type_ "gen_prop" [[%type: <set: [%t targ] -> unit; ..> ]]
+           arrows [Label.nolabel,tobj] (Js.type_ "gen_prop" [[%type: <set: [%t targ] -> unit; ..> ]])
          | _ -> assert false)
       (fun targs _tres -> obj_arrows targs [%type: unit])
       (function
         | [obj; arg] ->
           Js.unsafe "set" [obj; str (unescape prop); inject_arg arg]
         | _ -> assert false)
-      [Label.nolabel, []; Label.nolabel, []]
+      [ArgDescr.simple_nolabel; ArgDescr.simple_nolabel]
   in
   Exp.apply invoker (
     [ app_arg obj
@@ -217,7 +245,7 @@ let prop_set ~loc ~prop_loc obj prop value =
 let new_object constr args =
   let invoker =
     invoker
-      (fun _targs _tres -> [],[%type: unit])
+      (fun _targs _tres -> [%type: unit])
       (fun targs tres ->
          let _unit = List.hd targs and targs = List.tl targs in
          let tres = Js.type_ "t" [tres] in
@@ -227,7 +255,7 @@ let new_object constr args =
         | (constr :: args) ->
           Js.unsafe "new_obj" [constr; inject_args args]
         | _ -> assert false)
-      ((Label.nolabel,[]) :: List.map (fun (l,_) -> l, []) args)
+      (ArgDescr.simple_nolabel :: List.map (fun (l,_) -> ArgDescr.simple l) args)
   in
   Exp.apply invoker (
     app_arg (Exp.ident ~loc:constr.loc constr) :: args
@@ -323,8 +351,7 @@ let literal_object self_id ( fields : field_desc list) =
                  (Js.type_ "meth" [ret_ty])
            ) fields targs
          in
-         ((Label.nolabel, Js.type_ "t" [tres]) :: targs),
-         tres)
+         arrows ((Label.nolabel, Js.type_ "t" [tres]) :: targs) tres)
       (fun targs tres ->
          let targs =
            List.map2 (fun f (l,args,ret) ->
@@ -349,8 +376,8 @@ let literal_object self_id ( fields : field_desc list) =
             )]
       )
       (List.map (function
-         | `Val _ -> Label.nolabel, []
-         | `Meth (_, _, _, _, fun_ty) -> Label.nolabel, Label.nolabel :: fun_ty) fields)
+         | `Val _ -> ArgDescr.simple_nolabel
+         | `Meth (_, _, _, _, fun_ty) -> ArgDescr.complex_nolabel (Label.nolabel :: fun_ty)) fields)
   in
 
   let self = "self" in
