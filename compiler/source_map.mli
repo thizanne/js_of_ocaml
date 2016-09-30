@@ -39,3 +39,5 @@ type t = {
 }
 
 val json : t -> Json.t
+val of_json : Json.t -> t
+val merge : (int * t) list -> t
