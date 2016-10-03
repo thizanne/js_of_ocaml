@@ -1,7 +1,7 @@
 
 include ../Makefile.conf
 
-PACKAGES=cmdliner base64
+PACKAGES=cmdliner base64 yojson
 
 
 ifeq "${WITH_FINDLIB}" "YES"
@@ -24,6 +24,7 @@ lib/%: %
 OBJS=compiler_version.cmx \
      util.cmx pretty_print.cmx option.cmx reserved.cmx varPrinter.cmx \
      dgraph.cmx code.cmx javascript.cmx json.cmx vlq64.cmx source_map.cmx \
+     link_js.cmx \
      js_output.cmx js_simpl.cmx parse_info.cmx js_token.cmx js_parser.cmx \
      js_lexer.cmx parse_js.cmx jsoo_primitive.cmx annot_parser.cmx annot_lexer.cmx \
      instr.cmx jsoo_subst.cmx pure_fun.cmx jsoo_deadcode.cmx \

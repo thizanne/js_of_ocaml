@@ -17,7 +17,7 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *)
 
-type t = 
+type t =
   [ `Null
   | `Bool of bool
   | `Float of float
@@ -98,5 +98,17 @@ and element_list f el =
   | e :: r ->
      PP.start_group f 0; json f e; PP.end_group f;
      PP.string f ","; PP.break f; element_list f r
-					       
+
 let pp = json
+
+let rec json_of_yojson = function
+  | `Bool b -> `Bool b
+  | `Float f -> `Float f
+  | `Null -> `Null
+  | `String s -> `String s
+  | `Int i -> `Float (float_of_int i)
+  | `List l -> `A (List.map json_of_yojson l)
+  | `Assoc l -> `O (List.map (fun (s,j) -> s, json_of_yojson j) l)
+
+let of_string s =
+  json_of_yojson (Yojson.Basic.from_string s)

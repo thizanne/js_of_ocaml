@@ -17,7 +17,7 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *)
 
-type t = 
+type t =
   [ `Null
   | `Bool of bool
   | `Float of float
@@ -26,3 +26,5 @@ type t =
   | `O of (string * t) list ]
 
 val pp : Pretty_print.t -> t -> unit
+
+val of_string : string -> t

@@ -246,9 +246,11 @@ let count p string =
   String.iter (fun c -> if c = p then incr r);
   !r
 
-let merge l =
+let merge _ = assert false
+(*let merge l =
   match l with
   | []  -> []
   | [x] -> [x]
   | x :: xs ->
     let rec loop gen_line l =
+*)

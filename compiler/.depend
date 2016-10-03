@@ -124,12 +124,15 @@ js_traverse.cmx : util.cmx option.cmx javascript.cmx code.cmx \
     js_traverse.cmi
 js_traverse.cmi : util.cmi javascript.cmi code.cmi
 linker.cmo : util.cmi reserved.cmi parse_js.cmi parse_info.cmi option.cmi \
-    jsoo_primitive.cmi js_traverse.cmi js_token.cmi javascript.cmi \
-    annot_parser.cmi annot_lexer.cmi linker.cmi
+    jsoo_primitive.cmi js_traverse.cmi js_token.cmi js_lexer.cmi \
+    javascript.cmi annot_parser.cmi annot_lexer.cmi linker.cmi
 linker.cmx : util.cmx reserved.cmx parse_js.cmx parse_info.cmx option.cmx \
-    jsoo_primitive.cmx js_traverse.cmx js_token.cmx javascript.cmx \
-    annot_parser.cmx annot_lexer.cmx linker.cmi
+    jsoo_primitive.cmx js_traverse.cmx js_token.cmx js_lexer.cmx \
+    javascript.cmx annot_parser.cmx annot_lexer.cmx linker.cmi
 linker.cmi : util.cmi parse_info.cmi jsoo_primitive.cmi javascript.cmi
+link_js.cmo : source_map.cmi pretty_print.cmi json.cmi link_js.cmi
+link_js.cmx : source_map.cmx pretty_print.cmx json.cmx link_js.cmi
+link_js.cmi :
 minifyArg.cmo : compiler_version.cmi commonArg.cmi minifyArg.cmi
 minifyArg.cmx : compiler_version.cmx commonArg.cmx minifyArg.cmi
 minifyArg.cmi : commonArg.cmi
